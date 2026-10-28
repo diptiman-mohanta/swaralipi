@@ -862,9 +862,10 @@ class ExportDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(32, 28, 32, 24)
         lay.setSpacing(16)
+        self.where = config.where_to_send(app.app_config)
         lay.addWidget(heading("Export a speaker's recordings",
-                              "Creates one zip file per speaker. Send it to the project team "
-                              "by Google Drive, pen drive or email."))
+                              "Saves one zip file per speaker on this computer. Nothing is "
+                              f"sent over the internet. {self.where}"))
         row = QHBoxLayout()
         row.setSpacing(8)
         self.dir = QLineEdit(output_dir)
@@ -921,7 +922,8 @@ class ExportDialog(QDialog):
             return
         box = QMessageBox(self)
         box.setWindowTitle("Export complete")
-        box.setText(f"Saved:\n{zip_path}\n\nSend this file to the project team.")
+        box.setText(f"The zip is saved on this computer:\n{zip_path}\n\nNothing has been sent. "
+                    f"{self.where}")
         open_btn = box.addButton("Open folder", QMessageBox.ActionRole)
         box.addButton(QMessageBox.Ok)
         box.exec()

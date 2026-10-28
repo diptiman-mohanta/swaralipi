@@ -84,6 +84,18 @@ def test_script_rejects_duplicate_numbers(tmp_path):
         load_script(tmp_path / "dup.csv")
 
 
+# ---------------------------------------------------------------- where to send the zip
+def test_where_to_send():
+    from recorder import config
+    template = {"organisation_name": "Your Organisation Name",
+                "contact_email": "speechdata@your-organisation.example"}
+    assert "no contact details" in config.where_to_send(template)
+    real = {"organisation_name": "Odia Speech Lab", "contact_email": "data@lab.org"}
+    assert config.where_to_send(real) == "Send it to Odia Speech Lab at data@lab.org."
+    custom = {**real, "submission_instructions": "Upload it to our Drive folder."}
+    assert config.where_to_send(custom) == "Upload it to our Drive folder."
+
+
 # ---------------------------------------------------------------- language / microphone
 def test_language_mismatch_detected():
     assert langcheck.mismatch_message("Odia", ["The quick brown fox."])

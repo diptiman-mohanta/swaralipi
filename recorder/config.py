@@ -93,9 +93,28 @@ def _read_json(path: Path, default):
 def load_app_config() -> dict:
     cfg = {"organisation_name": "Your Organisation", "project_name": "Speech Dataset",
            "contact_email": "", "consent_version": "1.0", "minimum_age": 18,
-           "default_language": "English", "locked_audio_preset": None}
+           "default_language": "English", "locked_audio_preset": None,
+           "submission_instructions": ""}
     cfg.update(_read_json(APP_CONFIG_FILE, {}))
     return cfg
+
+
+def contact_configured(cfg: dict) -> bool:
+    """False while app_config.json still has the template placeholders."""
+    email = cfg.get("contact_email", "")
+    return "@" in email and not email.endswith(".example") \
+        and cfg.get("organisation_name") not in ("", "Your Organisation Name", "Your Organisation")
+
+
+def where_to_send(cfg: dict) -> str:
+    """Tells contributors where their zip goes. The app never sends anything itself."""
+    custom = cfg.get("submission_instructions", "").strip()
+    if custom:
+        return custom
+    if contact_configured(cfg):
+        return f"Send it to {cfg['organisation_name']} at {cfg['contact_email']}."
+    return ("Send it to the person or organisation that asked you to record. This copy of the "
+            "app has no contact details set up.")
 
 
 def load_india_locations() -> dict:

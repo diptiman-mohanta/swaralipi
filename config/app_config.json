@@ -5,5 +5,6 @@
   "consent_version": "1.0",
   "minimum_age": 18,
   "default_language": "English",
-  "locked_audio_preset": "ASR + TTS (recommended)"
+  "locked_audio_preset": "ASR + TTS (recommended)",
+  "submission_instructions": ""
 }

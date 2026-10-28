@@ -29,7 +29,9 @@ QUICK_START = f"""Swaralipi {APP_VERSION} - offline speech dataset recorder
 2. Choose a mode, check the microphone, read the consent page with the speaker,
    enter the speaker details and record.
 3. When a speaker is finished, click "Finish session" and "Export zip now".
-   Send the zip from the recordings\\submissions folder to the project team.
+   The zip is saved in the recordings\\submissions folder. The app never sends
+   anything itself: share the zip yourself as the app tells you (Google Drive,
+   email or pen drive).
 
 Recordings are saved in the "recordings" folder next to Swaralipi.exe unless you
 choose another folder. Nothing is uploaded from this computer.

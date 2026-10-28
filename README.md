@@ -44,7 +44,8 @@ everything works offline. You need **Python 3.10 or newer**. Linux also needs
 | <img src="docs/screenshots/5-record.png" width="400"> | **5. Record.** Record, Stop, Listen, Submit. Every take gets an automatic quality check. |
 
 **Then send it:** click **Finish session → Export zip now**. The zip is saved in
-`recordings/submissions/`. Send it to the project team by Google Drive, pen drive or email.
+`recordings/submissions/`. **The app never sends anything over the internet.** You share the
+zip yourself, by Google Drive, email or pen drive, as the app's export screen tells you.
 
 | Key | Action |
 |---|---|
@@ -122,7 +123,10 @@ people practically never collide.
   email for withdrawal requests, minimum age, and `locked_audio_preset`.
   `locked_audio_preset` fixes the audio format for every contributor so the dataset never mixes
   formats. It is `"ASR + TTS (recommended)"`. Use `"ASR only"`, `"TTS only"`, or `null` to let
-  contributors choose. In the Windows app, this folder sits next to `Swaralipi.exe`.
+  contributors choose. Set `submission_instructions` to tell contributors exactly how to send
+  their zip, for example `"Upload the zip to https://drive.google.com/… or email it to
+  data@example.org"`. Left empty, the export screen shows the organisation name and contact
+  email. In the Windows app, this folder sits next to `Swaralipi.exe`.
 - **[config/consent.md](config/consent.md)** is a template. Review it with your legal / ethics
   team and change `consent_version` whenever you change the text.
 
