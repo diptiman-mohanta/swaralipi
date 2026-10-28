@@ -1,0 +1,12 @@
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+
+# Local data - never commit recordings or personal details
+recordings/
+user_settings.json
+merged*/
+
+# PRIVATE KEY - never commit or share
+keys/

@@ -1,0 +1,9 @@
+{
+  "organisation_name": "Your Organisation Name",
+  "project_name": "Offline Speech Dataset - English Pilot",
+  "contact_email": "speechdata@your-organisation.example",
+  "consent_version": "1.0",
+  "minimum_age": 18,
+  "default_language": "English",
+  "locked_audio_preset": "ASR + TTS (recommended)"
+}
