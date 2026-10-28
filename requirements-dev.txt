@@ -1,0 +1,6 @@
+# Tools for running the tests and building the Windows app (not needed to use the app).
+#   .venv\Scripts\pip install -r requirements-dev.txt
+-r requirements.txt
+pytest==9.2.0
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9

@@ -10,3 +10,9 @@ merged*/
 
 # PRIVATE KEY - never commit or share
 keys/
+
+# Build and test output
+build/
+dist/
+.pytest_cache/
+*.stackdump

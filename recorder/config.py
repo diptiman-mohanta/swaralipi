@@ -1,16 +1,25 @@
 """Paths, option lists and persisted settings."""
 
 import json
+import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-CONFIG_DIR = ROOT_DIR / "config"
-DATA_DIR = ROOT_DIR / "data"
+# From source, everything lives in the repo folder. In the packaged Windows app,
+# read-only resources are unpacked by PyInstaller (sys._MEIPASS), while config/,
+# recordings/ and user_settings.json sit next to Swaralipi.exe so they can be edited.
+FROZEN = getattr(sys, "frozen", False)
+SOURCE_DIR = Path(__file__).resolve().parent.parent
+BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", SOURCE_DIR))
+APP_DIR = Path(sys.executable).resolve().parent if FROZEN else SOURCE_DIR
+
+CONFIG_DIR = APP_DIR / "config"
+DATA_DIR = BUNDLE_DIR / "data"
+ASSETS_DIR = BUNDLE_DIR / "assets"
 APP_CONFIG_FILE = CONFIG_DIR / "app_config.json"
 CONSENT_FILE = CONFIG_DIR / "consent.md"
 PUBLIC_KEY_FILE = CONFIG_DIR / "public_key.pem"
-USER_SETTINGS_FILE = ROOT_DIR / "user_settings.json"
-DEFAULT_OUTPUT_DIR = ROOT_DIR / "recordings"
+USER_SETTINGS_FILE = APP_DIR / "user_settings.json"
+DEFAULT_OUTPUT_DIR = APP_DIR / "recordings"
 
 MODE_TYPED = "typed"      # type transcript first, then read it aloud
 MODE_SCRIPT = "script"    # read sentences from a loaded xlsx/csv script

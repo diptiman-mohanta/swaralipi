@@ -81,6 +81,8 @@ def scrolled(inner: QWidget) -> QScrollArea:
 
 
 def fmt_duration(seconds: float) -> str:
+    if seconds < 60:
+        return f"{int(round(seconds))} s"
     m = int(round(seconds / 60))
     return f"{m // 60} h {m % 60} min" if m >= 60 else f"{m} min"
 
@@ -190,9 +192,8 @@ class AudioSettingsPage(QWidget):
         self._loading = False
         lay = page_layout(self)
         lay.addWidget(heading("Audio settings",
-                              "Keep the recommended preset unless the project team asked for "
-                              "something else. These settings are remembered on this "
-                              "computer."))
+                              "Check the microphone and choose where recordings are saved. "
+                              "These settings are remembered on this computer."))
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(56)

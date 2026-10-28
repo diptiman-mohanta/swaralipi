@@ -29,8 +29,9 @@ def encryption_available() -> bool:
     return PUBLIC_KEY_FILE.is_file()
 
 
-def encrypt_json(payload: dict, public_key_path: Path = PUBLIC_KEY_FILE) -> dict:
-    public_key = serialization.load_pem_public_key(public_key_path.read_bytes())
+def encrypt_json(payload: dict, public_key_path: Path | None = None) -> dict:
+    path = public_key_path or PUBLIC_KEY_FILE
+    public_key = serialization.load_pem_public_key(path.read_bytes())
     aes_key = AESGCM.generate_key(bit_length=256)
     nonce = os.urandom(12)
     ciphertext = AESGCM(aes_key).encrypt(nonce, json.dumps(payload).encode("utf-8"), None)

@@ -6,11 +6,11 @@ amber appear only on quality-check results. IBM Plex Sans for text, IBM Plex Mon
 IDs and measured values.
 """
 
-from pathlib import Path
-
 from PySide6.QtGui import QColor, QFontDatabase, QPalette
 
-UI_DIR = Path(__file__).parent
+from ..config import BUNDLE_DIR
+
+UI_DIR = BUNDLE_DIR / "recorder" / "ui"
 FONTS_DIR = UI_DIR / "fonts"
 CHECK_ICON = (UI_DIR / "icons" / "check.svg").as_posix()
 CHEVRON_ICON = (UI_DIR / "icons" / "chevron-down.svg").as_posix()
@@ -134,6 +134,11 @@ QLineEdit, QComboBox, QPlainTextEdit, QTextBrowser {{
 }}
 QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {INK}; }}
 QLineEdit[invalid="true"], QComboBox[invalid="true"] {{ border: 1px solid {RED}; }}
+QLineEdit:disabled, QComboBox:disabled {{
+    background: transparent; color: {MUTED}; border-color: {RULE};
+}}
+QCheckBox:disabled {{ color: {MUTED}; }}
+QCheckBox::indicator:checked:disabled {{ background: {MUTED}; border-color: {MUTED}; }}
 QComboBox::drop-down {{ border: none; width: 26px; }}
 QComboBox::down-arrow {{ image: url({CHEVRON_ICON}); width: 12px; height: 12px; }}
 QComboBox QAbstractItemView {{
