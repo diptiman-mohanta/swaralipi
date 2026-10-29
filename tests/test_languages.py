@@ -140,3 +140,20 @@ def test_every_demo_word_can_be_typed():
                                   "ॐ", "दुःख", "विद्वान्", "क्षमा", "ज्ञान", "श्री", "कृपया"])
 def test_round_trip_tricky_words(word):
     assert phonetic.transliterate_text(phonetic.to_latin(word)) == NFC(word)
+
+
+@pytest.mark.parametrize("name", ["demo_script_hindi.csv", "demo_script_english.csv"])
+def test_script_with_windows_line_endings(tmp_path, name):
+    """A fresh Git checkout on Windows turns LF into CRLF; the script must load the same."""
+    text = (ROOT / "samples" / name).read_bytes().replace(b"\r\n", b"\n")
+    crlf = tmp_path / name
+    crlf.write_bytes(text.replace(b"\n", b"\r\n"))
+    assert load_script(crlf) == load_script(ROOT / "samples" / name)
+
+
+@pytest.mark.parametrize("delimiter", [",", ";", "\t"])
+def test_script_delimiters(tmp_path, delimiter):
+    f = tmp_path / "s.csv"
+    f.write_text(f'sentence_no{delimiter}sentence\r\n1{delimiter}"नमस्ते, दुनिया।"\r\n',
+                 encoding="utf-8")
+    assert load_script(f) == [("1", "नमस्ते, दुनिया।")]

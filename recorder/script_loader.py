@@ -40,8 +40,12 @@ def _read_rows(path: Path) -> list[list]:
                 continue
         else:
             raise ScriptError("Could not read the file - save it as UTF-8 CSV.")
-        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t") if text.strip() else "excel"
-        return [r for r in csv.reader(text.splitlines(), dialect)]
+        # The delimiter is whichever of , ; or tab the first line uses most (csv.Sniffer
+        # guesses wrong on some files, e.g. Hindi text with Windows line endings).
+        lines = text.splitlines()
+        first = next((line for line in lines if line.strip()), "")
+        delimiter = max(",;\t", key=first.count) if any(d in first for d in ",;\t") else ","
+        return [r for r in csv.reader(lines, delimiter=delimiter)]
     raise ScriptError("Unsupported file type - use .xlsx or .csv")
 
 
