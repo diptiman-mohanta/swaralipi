@@ -6,6 +6,7 @@ __pycache__/
 # Local data - never commit recordings or personal details
 recordings/
 user_settings.json
+speaker_checks.json
 merged*/
 
 # PRIVATE KEY - never commit or share

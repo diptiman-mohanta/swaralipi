@@ -11,7 +11,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from recorder import config, crypto  # noqa: E402
+from recorder import config, crypto, privacy  # noqa: E402
 
 
 def speech_like(sr: int = 48000, seconds: float = 3.0, start: float = 0.6, end: float = 2.4,
@@ -28,6 +28,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "USER_SETTINGS_FILE", tmp_path / "user_settings.json")
     monkeypatch.setattr(config, "DEFAULT_OUTPUT_DIR", tmp_path / "recordings")
     monkeypatch.setattr(crypto, "PUBLIC_KEY_FILE", tmp_path / "no_public_key.pem")
+    monkeypatch.setattr(privacy, "CHECKS_FILE", tmp_path / "speaker_checks.json")
     return tmp_path
 
 

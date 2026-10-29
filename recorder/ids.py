@@ -27,8 +27,12 @@ def normalize_text(text: str) -> str:
 
 
 def normalize_name(name: str) -> str:
+    """Lowercase letters, digits and spaces only. Vowel signs of Indian scripts (combining
+    marks) are kept, so names typed in Devanagari etc. stay intact."""
     name = normalize_text(name).casefold()
-    return re.sub(r"[^\w ]", "", name).strip()
+    kept = "".join(ch for ch in name if ch.isalnum() or ch in " _"
+                   or unicodedata.category(ch).startswith("M"))
+    return kept.strip()
 
 
 def mobile_digits(mobile: str) -> str:

@@ -28,9 +28,13 @@ def _read_rows(path: Path) -> list[list]:
         wb.close()
         return rows
     if path.suffix.lower() in (".csv", ".tsv", ".txt"):
-        for enc in ("utf-8-sig", "cp1252"):
+        raw = path.read_bytes()
+        # Excel's "Unicode Text" export is UTF-16; Indian-language scripts need Unicode.
+        encodings = ("utf-16",) if raw[:2] in (b"\xff\xfe", b"\xfe\xff") \
+            else ("utf-8-sig", "cp1252")
+        for enc in encodings:
             try:
-                text = path.read_text(encoding=enc)
+                text = raw.decode(enc)
                 break
             except UnicodeDecodeError:
                 continue

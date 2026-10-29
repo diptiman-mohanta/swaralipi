@@ -23,8 +23,25 @@ def smoke_test(window) -> list[str]:
     from recorder import config, crypto
 
     problems = []
-    if "IBM Plex Sans" not in QFontDatabase.families():
+    families = set(QFontDatabase.families())
+    if "IBM Plex Sans" not in families:
         problems.append("fonts not loaded")
+    script_fonts = {s["font"] for s in config.SCRIPTS.values()} | {
+        i["font"] for i in config.LANGUAGE_INFO.values() if "font" in i}
+    missing = sorted(script_fonts - families)
+    if missing:
+        problems.append(f"Indian-language fonts missing: {', '.join(missing)}")
+    from recorder.typing import keys, phonetic
+    if len(config.LANGUAGES) != 23:
+        problems.append(f"expected 23 languages, found {len(config.LANGUAGES)}")
+    typed = {"Hindi": ("namaste", "नमस्ते"), "Tamil": ("vaNakkam", "வணக்கம்")}
+    if any(phonetic.transliterate(latin, lang) != want for lang, (latin, want) in typed.items()):
+        problems.append("English-letter typing is not working")
+    from recorder.typing import suggest
+    if not suggest.available("Hindi") or suggest.suggestions("Hindi", "pani")[0] != "पानी":
+        problems.append("word lists for typing suggestions missing")
+    if any(not keys.key_groups(name) for name in config.LANGUAGES if name != "English"):
+        problems.append("letter keys missing for some languages")
     if QApplication.windowIcon().isNull():
         problems.append("window icon missing")
     if not config.load_india_locations():

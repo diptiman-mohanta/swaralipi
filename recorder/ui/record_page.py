@@ -7,12 +7,15 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIntValidator, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMessageBox, QPlainTextEdit, QStackedWidget, QVBoxLayout, QWidget,
+    QMessageBox, QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from .. import APP_VERSION, audio, config, ids, langcheck, qc
 from ..script_loader import ScriptError, load_script
+from ..typing import phonetic, suggest
 from . import style
+from .typing_widgets import (LetterKeysPanel, PhoneticEdit, SuggestionBar, TypingHelpDialog,
+                             apply_language)
 from .widgets import LevelMeter, button, button_row, icon, label, rule
 
 QC_COLORS = {qc.OK: style.GREEN, qc.WARN: style.AMBER, qc.FAIL: style.RED}
@@ -52,9 +55,10 @@ class RecordPage(QWidget):
         root.setSpacing(0)
 
         # ============================================================ main column
+        # Scrolls when letter keys are open or the window is short (1366x768 laptops).
         main_w = QWidget()
         main = QVBoxLayout(main_w)
-        main.setContentsMargins(48, 28, 40, 24)
+        main.setContentsMargins(48, 28, 40, 16)
         main.setSpacing(0)
 
         meta = QHBoxLayout()
@@ -68,6 +72,7 @@ class RecordPage(QWidget):
         self.prompt_stack = QStackedWidget()
         self.prompt_stack.addWidget(self._build_typed_prompt())
         self.prompt_stack.addWidget(self._build_script_prompt())
+        self.prompt_stack.currentChanged.connect(self._fit_prompt_stack)
         main.addWidget(self.prompt_stack)
         main.addSpacing(24)
         main.addWidget(rule())
@@ -133,12 +138,22 @@ class RecordPage(QWidget):
         self.qc_issues.setTextFormat(Qt.RichText)
         main.addWidget(self.qc_issues)
         main.addStretch(1)
+        main_scroll = QScrollArea()
+        main_scroll.setWidget(main_w)
+        main_scroll.setWidgetResizable(True)
+        main_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        back = button("Back to speaker details")
+        back = self.back_btn = button("Back to speaker details")
         back.setFocusPolicy(Qt.NoFocus)
         back.clicked.connect(self.go_back)
-        main.addLayout(button_row(back, None, stretch_first=False))
-        root.addWidget(main_w, 1)
+        column = QVBoxLayout()
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        column.addWidget(main_scroll, 1)
+        footer = button_row(back, None, stretch_first=False)
+        footer.setContentsMargins(48, 8, 40, 24)
+        column.addLayout(footer)
+        root.addLayout(column, 1)
         root.addWidget(rule(vertical=True))
 
         # ============================================================ side column
@@ -179,6 +194,13 @@ class RecordPage(QWidget):
         self.timer.timeout.connect(self._tick)
 
     # ================================================================ prompts
+    def _fit_prompt_stack(self, index: int) -> None:
+        """Sizes the prompt area to the visible mode only (the typed-mode page is taller)."""
+        for i in range(self.prompt_stack.count()):
+            policy = QSizePolicy.Preferred if i == index else QSizePolicy.Ignored
+            self.prompt_stack.widget(i).setSizePolicy(policy, policy)
+        self.prompt_stack.adjustSize()
+
     def _build_typed_prompt(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -186,11 +208,48 @@ class RecordPage(QWidget):
         lay.setSpacing(10)
         self.typed_hint = label("", "Muted", wrap=True)
         lay.addWidget(self.typed_hint)
-        self.transcript = QPlainTextEdit()
+
+        # Typing options for Indian languages (hidden for English).
+        self.typing_row = QWidget()
+        trow = QHBoxLayout(self.typing_row)
+        trow.setContentsMargins(0, 0, 0, 0)
+        trow.setSpacing(8)
+        self.phonetic_btn = button("", "Segment")
+        self.latin_btn = button("English letters", "Segment")
+        self.keys_btn = button("Letter keys", "Segment")
+        self.suggest_btn = button("Suggestions", "Segment")
+        self.suggest_btn.setToolTip("Offer real words for what you type: pani → पानी")
+        self.help_btn = button("Typing help", "Quiet")
+        for b in (self.phonetic_btn, self.latin_btn, self.keys_btn, self.suggest_btn):
+            b.setCheckable(True)
+        for b in (self.phonetic_btn, self.latin_btn, self.keys_btn, self.suggest_btn,
+                  self.help_btn):
+            b.setFocusPolicy(Qt.NoFocus)
+        self.phonetic_btn.clicked.connect(lambda: self.set_phonetic(True))
+        self.latin_btn.clicked.connect(lambda: self.set_phonetic(False))
+        self.keys_btn.toggled.connect(self._show_keys)
+        self.suggest_btn.toggled.connect(self._show_suggestions)
+        self.help_btn.clicked.connect(self._typing_help)
+        for wdg in (self.phonetic_btn, self.latin_btn, self.keys_btn, self.suggest_btn):
+            trow.addWidget(wdg)
+        trow.addWidget(self.help_btn)
+        trow.addStretch(1)
+        lay.addWidget(self.typing_row)
+
+        self.transcript = PhoneticEdit()
         self.transcript.setObjectName("Transcript")
-        self.transcript.setPlaceholderText("Type the sentence exactly as it will be spoken")
         self.transcript.setFixedHeight(120)
         lay.addWidget(self.transcript)
+        self.suggestion_bar = SuggestionBar()
+        self.transcript.composing.connect(self.suggestion_bar.show_candidates)
+        self.suggestion_bar.picked.connect(self.transcript.choose)
+        lay.addWidget(self.suggestion_bar)
+        self.keys_panel = LetterKeysPanel()
+        self.keys_panel.keys.key_pressed.connect(self.transcript.insert_key)
+        self.keys_panel.hide()
+        lay.addWidget(self.keys_panel)
+        self.transcript.toggle_requested.connect(
+            lambda: self.set_phonetic(not self.transcript.phonetic_on))
         self.locked_lbl = label("", "Prompt", wrap=True)
         self.locked_lbl.setMinimumHeight(96)
         self.locked_lbl.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -250,9 +309,12 @@ class RecordPage(QWidget):
         store = session.store
         is_typed = session.mode == config.MODE_TYPED
         self.speaker_lbl.setText(store.speaker_id)
+        self.back_btn.setText("Back to home" if session.continued else "Back to speaker details")
         self.settings_lbl.setText(session.audio.summary())
         self.device_lbl.setText(audio.device_label(session.audio.device_name))
         self.prompt_stack.setCurrentIndex(0 if is_typed else 1)
+        self._fit_prompt_stack(self.prompt_stack.currentIndex())
+        self._configure_language()
         self.transcript.clear()
         self._set_locked(False)
         if not is_typed:
@@ -286,7 +348,10 @@ class RecordPage(QWidget):
     def go_back(self):
         if self.leave():
             self.session.store.remove_if_empty()
-            self.app.go_speaker(keep=True)
+            if self.session.continued:
+                self.app.go_welcome()
+            else:
+                self.app.go_speaker(keep=True)
 
     def finish(self):
         if not self.leave():
@@ -295,7 +360,9 @@ class RecordPage(QWidget):
         box = QMessageBox(self)
         box.setWindowTitle("Session finished")
         box.setText(f"{len(store.records)} recordings saved for {store.speaker_id} "
-                    f"({fmt_time(store.total_duration())} of audio).")
+                    f"({fmt_time(store.total_duration())} of audio).\n\nTo record more with "
+                    "this speaker another time, choose Continue with a speaker on the home "
+                    "screen; their details will not be needed again.")
         export = box.addButton("Export zip now", QMessageBox.AcceptRole)
         another = box.addButton("Next speaker", QMessageBox.ActionRole)
         box.addButton("Home", QMessageBox.RejectRole)
@@ -309,17 +376,114 @@ class RecordPage(QWidget):
         else:
             self.app.go_welcome()
 
+    # ================================================================ language and typing
+    @property
+    def language(self) -> str:
+        return self.session.speaker_public.get("language", "English") if self.session \
+            else "English"
+
+    def _configure_language(self) -> None:
+        """Fonts, reading direction and typing options for the speaker's language."""
+        lang = self.language
+        info = config.LANGUAGE_INFO.get(lang, {})
+        self.transcript.set_language(lang)
+        for lbl in (self.locked_lbl, self.sentence_lbl):
+            apply_language(lbl, lang, style.PROMPT + 2)
+        has_phonetic = bool(info.get("phonetic"))
+        for b in (self.phonetic_btn, self.latin_btn, self.help_btn):
+            b.setVisible(has_phonetic)
+        self.suggestion_bar.set_language(lang)
+        self.phonetic_btn.setText(f"{info.get('native', lang)} from English letters")
+        # Both fonts, so the button is measured with the glyphs it really shows.
+        self.phonetic_btn.setStyleSheet(
+            f'font-family: "{style.SANS}", "{config.language_font(lang)}";')
+        if lang != "English":
+            self.keys_panel.keys.set_language(lang)
+        prefs = config.load_user_settings().get("typing", {})
+        self.set_phonetic(has_phonetic and prefs.get("phonetic", True), save=False)
+        self.keys_btn.blockSignals(True)
+        self.keys_btn.setChecked(lang != "English" and prefs.get("keys", not has_phonetic))
+        self.keys_btn.blockSignals(False)
+        self.suggest_btn.blockSignals(True)
+        self.suggest_btn.setChecked(prefs.get("suggest", True))
+        self.suggest_btn.blockSignals(False)
+        self.transcript.suggest_on = self.suggest_btn.isChecked()
+        self._update_typing_visibility()
+
+    def set_phonetic(self, on: bool, save: bool = True) -> None:
+        self.transcript.set_phonetic(on)
+        on = self.transcript.phonetic_on
+        self.phonetic_btn.setChecked(on)
+        self.latin_btn.setChecked(not on)
+        native = config.LANGUAGE_INFO.get(self.language, {}).get("native", "")
+        if on:
+            latin, shown = phonetic.EXAMPLES.get(self.language, phonetic.EXAMPLES["Hindi"])[0]
+            self.transcript.setPlaceholderText(
+                f"Type how it sounds in English letters, for example {latin} → {shown}")
+        else:
+            self.transcript.setPlaceholderText("Type the sentence exactly as it will be spoken")
+        if save:
+            self._save_typing_prefs()
+        self._update_typing_visibility()
+        if on and native:
+            self.transcript.setFocus()
+
+    def _show_keys(self, on: bool) -> None:
+        self._save_typing_prefs()
+        self._update_typing_visibility()
+        if on:
+            self.transcript.setFocus()
+
+    def _show_suggestions(self, on: bool) -> None:
+        self.transcript.commit()
+        self.transcript.suggest_on = on
+        self._save_typing_prefs()
+        self._update_typing_visibility()
+        self.transcript.setFocus()
+
+    def _save_typing_prefs(self) -> None:
+        settings = config.load_user_settings()
+        prefs = settings.get("typing", {})
+        if self.transcript.phonetic_available:   # don't forget the choice in other languages
+            prefs["phonetic"] = self.transcript.phonetic_on
+        if suggest.available(self.language):
+            prefs["suggest"] = self.suggest_btn.isChecked()
+        prefs["keys"] = self.keys_btn.isChecked()
+        settings["typing"] = prefs
+        config.save_user_settings(settings)
+
+    def _update_typing_visibility(self) -> None:
+        editing = not self.locked_text and self.session is not None \
+            and self.session.mode == config.MODE_TYPED
+        indic = self.language != "English"
+        self.typing_row.setVisible(editing and indic)
+        self.keys_panel.setVisible(editing and indic and self.keys_btn.isChecked())
+        phonetic_typing = editing and indic and self.transcript.phonetic_on
+        can_suggest = suggest.available(self.language)
+        self.suggest_btn.setVisible(can_suggest and self.transcript.phonetic_on)
+        self.suggestion_bar.setVisible(phonetic_typing)
+        self.suggestion_bar.hint.setText(
+            SuggestionBar.HINT if can_suggest and self.suggest_btn.isChecked()
+            else "The word you are typing appears here.")
+
+    def _typing_help(self) -> None:
+        TypingHelpDialog(self, self.language).exec()
+
     # ================================================================ typed mode
     def _set_locked(self, locked: bool):
         """Locked: the confirmed sentence is shown like a script prompt, not as an editor."""
+        self.transcript.commit()
         self.transcript.setVisible(not locked)
         self.locked_lbl.setVisible(locked)
         self.locked_lbl.setText(self.locked_text if locked else "")
         self.ok_btn.setVisible(not locked)
         self.edit_btn.setVisible(locked)
+        lang = "" if self.language == "English" else f" in {self.language}"
         self.typed_hint.setText(
             "Read this sentence aloud." if locked else
-            "Type the sentence exactly as it will be spoken, then confirm it (Ctrl+Enter).")
+            f"Type the sentence{lang} exactly as it will be spoken, then confirm it "
+            "(Ctrl+Enter).")
+        self._update_typing_visibility()
 
     def confirm_transcript(self):
         text = ids.normalize_text(self.transcript.toPlainText())
@@ -343,20 +507,11 @@ class RecordPage(QWidget):
         self._update_ui()
 
     def _contains_private_details(self, text: str) -> bool:
-        words = set(ids.normalize_name(text).split())
-        flat = text.casefold()
-        digits = "".join(ch for ch in text if ch.isdigit())
-        for term in self.session.private_terms:
-            if term.isdigit():
-                if term in digits:
-                    return True
-            elif term in words or ("@" in term and term in flat):
-                return True
-        return False
+        return self.session.private_check.found_in(text)
 
     def edit_transcript(self):
-        self._set_locked(False)
         self.locked_text = ""
+        self._set_locked(False)
         self.transcript.setFocus()
         self._update_ui()
 
@@ -585,8 +740,8 @@ class RecordPage(QWidget):
         short = sid.removeprefix(store.speaker_id + "_")
         if s.mode == config.MODE_TYPED:
             self.transcript.clear()
-            self._set_locked(False)
             self.locked_text = ""
+            self._set_locked(False)
             self.transcript.setFocus()
             self._update_ui()
         else:
@@ -612,6 +767,9 @@ class RecordPage(QWidget):
             "channels": s.audio.channels,
             "file_format": s.audio.file_format,
             "language": sp["language"],
+            "language_code": config.LANGUAGES.get(sp["language"], ""),
+            "script": langcheck.dominant_script([self.current_text()])
+                      or config.LANGUAGE_INFO.get(sp["language"], {}).get("scripts", [""])[0],
             "mode": s.mode,
             "script_file": self.script_name if s.mode == config.MODE_SCRIPT else "",
             "script_sentence_no": number,

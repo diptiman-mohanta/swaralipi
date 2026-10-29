@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QCompleter, QDialog, QFileDialog, QFormLayout, QGridLayout,
     QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QScrollArea,
@@ -115,10 +115,15 @@ class WelcomePage(QWidget):
         start = button("Start a session", "Primary")
         start.setMinimumHeight(42)
         start.clicked.connect(app.go_mode)
+        self.continue_btn = button("Continue with a speaker")
+        self.continue_btn.setMinimumHeight(42)
+        self.continue_btn.setToolTip("Record more for someone recorded before, without "
+                                     "entering their details again")
+        self.continue_btn.clicked.connect(app.open_continue)
         export = button("Export a speaker's recordings")
         export.setMinimumHeight(42)
         export.clicked.connect(app.open_export)
-        body.addLayout(button_row(start, export, None, stretch_first=False))
+        body.addLayout(button_row(start, self.continue_btn, export, None, stretch_first=False))
         lay.addLayout(body)
         lay.addStretch(3)
 
@@ -148,6 +153,7 @@ class WelcomePage(QWidget):
                                f"{fmt_duration(secs)} of audio")
         else:
             self.stats.setText("No recordings yet.")
+        self.continue_btn.setVisible(bool(speakers))
         self.folder.setText(str(out))
 
 
@@ -646,7 +652,10 @@ class SpeakerPage(QWidget):
         # ---- session
         right.addWidget(section("This session"))
         sf = form()
-        self.language = combo(config.LANGUAGES)
+        self.language = combo([])
+        for name in config.LANGUAGES:   # English first, then the 22 scheduled languages
+            self.language.addItem(config.language_label(name), name)
+        self.language.setCurrentIndex(-1)
         self.environment = combo(config.ENVIRONMENTS)
         self.mic = combo(config.MIC_TYPES)
         sf.addRow("Recording language *", self.language)
@@ -696,7 +705,7 @@ class SpeakerPage(QWidget):
             c.setEditText("")
         if not keep_session_fields or not self.country.currentText():
             self.country.setCurrentText("India")
-            self.language.setCurrentText(self.app.app_config.get("default_language", "English"))
+            self.select_language(self.app.app_config.get("default_language", "English"))
         for w in self._all_fields():
             set_invalid(w, False)
         self._preview()
@@ -712,6 +721,13 @@ class SpeakerPage(QWidget):
         else:
             self.mic.setCurrentIndex(-1)
             self.mic_hint.setText(f"Input device: {device}. Choose the matching type.")
+
+    def language_name(self) -> str:
+        """Recording language as its English name ('Hindi'); the list shows 'Hindi — हिन्दी'."""
+        return self.language.currentData() or ""
+
+    def select_language(self, name: str) -> None:
+        self.language.setCurrentIndex(self.language.findData(name))
 
     def _all_fields(self):
         return [self.name, self.mobile, self.email, self.birth_year, self.gender,
@@ -757,7 +773,7 @@ class SpeakerPage(QWidget):
         gender = config.GENDERS.get(self.gender.currentText())
         district = self.district.currentText().strip()
         pincode = self.pincode.text().strip()
-        lang = config.LANGUAGES.get(self.language.currentText())
+        lang = config.LANGUAGES.get(self.language_name())
         if not (ids.normalize_name(name) and ids.mobile_digits(mobile) and gender and lang
                 and district and pincode and year and self.state.currentText().strip()):
             return None
@@ -827,8 +843,8 @@ class SpeakerPage(QWidget):
         pin = re.sub(r"\s", "", self.pincode.text())
         public = {
             "speaker_id": sid,
-            "language": self.language.currentText(),
-            "language_code": config.LANGUAGES[self.language.currentText()],
+            "language": self.language_name(),
+            "language_code": config.LANGUAGES[self.language_name()],
             "gender": self.gender.currentText(),
             "birth_year": year,
             "age_group": config.age_group(CURRENT_YEAR - year),
@@ -854,16 +870,29 @@ class SpeakerPage(QWidget):
 
 
 # =================================================================== export
+def export_status(sp: dict, submissions: Path) -> str:
+    """Whether a speaker's recordings have been exported, judged by the zips already in the
+    submissions folder."""
+    zips = sorted(submissions.glob(f"{sp['speaker_id']}_*.zip"), key=lambda z: z.stat().st_mtime)
+    if not zips:
+        return "not exported yet"
+    last = zips[-1].stat().st_mtime
+    when = datetime.fromtimestamp(last).strftime("%d %b")
+    if sp["updated"] > last:
+        return f"new recordings since the export on {when}"
+    return f"exported {when}"
+
+
 class ExportDialog(QDialog):
     def __init__(self, app, output_dir: str, select: str = ""):
         super().__init__(app)
         self.setWindowTitle("Export recordings")
-        self.resize(760, 500)
+        self.resize(820, 560)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(32, 28, 32, 24)
         lay.setSpacing(16)
         self.where = config.where_to_send(app.app_config)
-        lay.addWidget(heading("Export a speaker's recordings",
+        lay.addWidget(heading("Export speakers' recordings",
                               "Saves one zip file per speaker on this computer. Nothing is "
                               f"sent over the internet. {self.where}"))
         row = QHBoxLayout()
@@ -877,14 +906,23 @@ class ExportDialog(QDialog):
         lay.addLayout(row)
         lay.addWidget(rule())
         self.list = QListWidget()
+        self.list.setObjectName("SpeakerList")
+        self.list.itemChanged.connect(self._update_button)
         lay.addWidget(self.list, 1)
+        self.pending_btn = button("Select all not yet exported", "Quiet")
+        self.pending_btn.clicked.connect(self.select_pending)
         close = button("Close")
         close.clicked.connect(self.reject)
         self.export_btn = button("Export zip", "Primary")
         self.export_btn.clicked.connect(self.export)
-        lay.addLayout(button_row(close, self.export_btn))
+        lay.addLayout(button_row(self.pending_btn, None, close, self.export_btn,
+                                 stretch_first=False))
         self.dir.editingFinished.connect(self.refresh)
         self.refresh(select)
+
+    @property
+    def submissions(self) -> Path:
+        return Path(self.dir.text()) / "submissions"
 
     def browse(self):
         d = QFileDialog.getExistingDirectory(self, "Recordings folder", self.dir.text())
@@ -893,39 +931,188 @@ class ExportDialog(QDialog):
             self.refresh()
 
     def refresh(self, select: str = ""):
+        self.list.blockSignals(True)
         self.list.clear()
-        for sp in list_speakers(Path(self.dir.text())):
-            mins, secs = divmod(int(sp["seconds"]), 60)
-            item = QListWidgetItem(f"{sp['speaker_id']}      {sp['clips']} recordings, "
-                                   f"{mins}:{secs:02d}")
-            item.setFont(QFont(style.MONO))
+        speakers = sorted(list_speakers(Path(self.dir.text())), key=lambda s: -s["updated"])
+        for sp in speakers:
+            status = export_status(sp, self.submissions)
+            item = QListWidgetItem(f"{sp['speaker_id']}\n{speaker_summary(sp)}  ·  {status}")
             item.setData(Qt.UserRole, str(sp["path"]))
+            item.setData(Qt.UserRole + 1, status)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if sp["speaker_id"] == select else Qt.Unchecked)
             self.list.addItem(item)
-            if sp["speaker_id"] == select:
-                self.list.setCurrentItem(item)
-        if self.list.count() and not self.list.currentItem():
-            self.list.setCurrentRow(0)
-        self.export_btn.setEnabled(self.list.count() > 0)
-        if not self.list.count():
+        if not speakers:
             self.list.addItem("No speakers have been recorded in this folder yet.")
             self.list.item(0).setFlags(Qt.NoItemFlags)
+        elif not select:
+            self.select_pending()
+        self.list.blockSignals(False)
+        self.pending_btn.setVisible(bool(speakers))
+        self._update_button()
+
+    def _items(self):
+        return [self.list.item(i) for i in range(self.list.count())
+                if self.list.item(i).data(Qt.UserRole)]
+
+    def checked(self) -> list[Path]:
+        return [Path(it.data(Qt.UserRole)) for it in self._items()
+                if it.checkState() == Qt.Checked]
+
+    def select_pending(self):
+        for it in self._items():
+            done = it.data(Qt.UserRole + 1).startswith("exported")
+            it.setCheckState(Qt.Unchecked if done else Qt.Checked)
+
+    def _update_button(self, *_):
+        n = len(self.checked())
+        self.export_btn.setEnabled(n > 0)
+        self.export_btn.setText(f"Export {n} zips" if n > 1 else "Export zip")
 
     def export(self):
-        item = self.list.currentItem()
-        if not item or not item.data(Qt.UserRole):
+        chosen = self.checked()
+        if not chosen:
             return
-        dest = Path(self.dir.text()) / "submissions"
-        try:
-            zip_path = export_speaker(Path(item.data(Qt.UserRole)), dest)
-        except OSError as e:
-            QMessageBox.critical(self, "Export", f"The export failed.\n\n{e}")
+        made = []
+        for folder in chosen:
+            try:
+                made.append(export_speaker(folder, self.submissions))
+            except OSError as e:
+                QMessageBox.critical(self, "Export", f"Exporting {folder.name} failed.\n\n{e}")
+                break
+        self.refresh()
+        if not made:
             return
+        what = f"The zip is saved on this computer:\n{made[0]}" if len(made) == 1 else \
+            f"{len(made)} zips are saved on this computer, in:\n{self.submissions}"
         box = QMessageBox(self)
         box.setWindowTitle("Export complete")
-        box.setText(f"The zip is saved on this computer:\n{zip_path}\n\nNothing has been sent. "
-                    f"{self.where}")
+        box.setText(f"{what}\n\nNothing has been sent. {self.where}")
         open_btn = box.addButton("Open folder", QMessageBox.ActionRole)
         box.addButton(QMessageBox.Ok)
         box.exec()
         if box.clickedButton() is open_btn:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(dest)))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.submissions)))
+
+
+# =================================================================== continue a speaker
+MODE_LABELS = {config.MODE_TYPED: "Type a sentence, then read it aloud",
+               config.MODE_SCRIPT: "Read sentences from a script file"}
+
+
+def speaker_summary(sp: dict) -> str:
+    """One line about a saved speaker: language, gender, age, place, recordings, last date."""
+    p = sp.get("profile", {})
+    place = ", ".join(x for x in (p.get("district"), p.get("state")) if x)
+    when = datetime.fromtimestamp(sp["updated"]).strftime("%d %b %Y") if sp.get("updated") else ""
+    parts = [p.get("language", ""), p.get("gender", ""), p.get("age_group", ""), place,
+             f"{sp['clips']} recording{'s' * (sp['clips'] != 1)}, {fmt_duration(sp['seconds'])}",
+             f"last {when}" if when else ""]
+    return "  ·  ".join(x for x in parts if x)
+
+
+class ContinueDialog(QDialog):
+    """Pick up where a speaker left off, without entering their details or consent again."""
+
+    def __init__(self, app, output_dir: str):
+        super().__init__(app)
+        self.app = app
+        self.setWindowTitle("Continue with a speaker")
+        self.resize(820, 620)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(32, 28, 32, 24)
+        lay.setSpacing(14)
+        lay.addWidget(heading("Continue with a speaker",
+                              "Speakers recorded on this computer, most recent first. Their "
+                              "details and consent are already saved, so recording continues "
+                              "straight away and new recordings join their earlier ones."))
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search by Speaker ID, language or district")
+        self.search.textChanged.connect(self._filter)
+        lay.addWidget(self.search)
+        self.list = QListWidget()
+        self.list.setObjectName("SpeakerList")
+        self.list.currentItemChanged.connect(self._selected)
+        self.list.itemDoubleClicked.connect(lambda *_: self.start())
+        lay.addWidget(self.list, 1)
+
+        f = form()
+        self.mode = combo(MODE_LABELS.values())
+        self.environment = combo(config.ENVIRONMENTS)
+        self.mic = combo(config.MIC_TYPES)
+        f.addRow("This session", self.mode)
+        f.addRow("Environment", self.environment)
+        f.addRow("Microphone", self.mic)
+        lay.addLayout(f)
+        self.consent_lbl = label("", "Note", wrap=True)
+        lay.addWidget(self.consent_lbl)
+        close = button("Close")
+        close.clicked.connect(self.reject)
+        self.start_btn = button("Continue recording", "Primary")
+        self.start_btn.clicked.connect(self.start)
+        lay.addLayout(button_row(close, self.start_btn))
+
+        self.speakers = sorted(list_speakers(Path(output_dir)), key=lambda s: -s["updated"])
+        for sp in self.speakers:
+            item = QListWidgetItem(f"{sp['speaker_id']}\n{speaker_summary(sp)}")
+            item.setData(Qt.UserRole, sp)
+            self.list.addItem(item)
+        if self.speakers:
+            self.list.setCurrentRow(0)
+        else:
+            self.list.addItem("No speakers have been recorded in this folder yet.")
+            self.list.item(0).setFlags(Qt.NoItemFlags)
+        self._selected()
+
+    def _filter(self, text: str) -> None:
+        words = text.casefold().split()
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            item.setHidden(not all(w in item.text().casefold() for w in words))
+        current = self.list.currentItem()
+        if not current or current.isHidden():
+            visible = [self.list.item(i) for i in range(self.list.count())
+                       if not self.list.item(i).isHidden()]
+            self.list.setCurrentItem(visible[0] if visible else None)
+
+    def selected(self) -> dict | None:
+        item = self.list.currentItem()
+        return item.data(Qt.UserRole) if item and not item.isHidden() else None
+
+    def _selected(self, *_):
+        sp = self.selected()
+        self.start_btn.setEnabled(bool(sp))
+        if not sp:
+            self.consent_lbl.setText("")
+            return
+        last = sp["last"]
+        self.mode.setCurrentText(MODE_LABELS.get(last.get("mode"),
+                                                 MODE_LABELS[self.app.session.mode]))
+        for c, key in ((self.environment, "recording_environment"), (self.mic, "microphone_type")):
+            if last.get(key):
+                c.setCurrentText(last[key])
+        if sp["consent_at"]:
+            try:
+                when = datetime.fromisoformat(sp["consent_at"]).strftime("%d %b %Y")
+            except ValueError:
+                when = sp["consent_at"][:10]
+            self.consent_lbl.setText(f"Consent was given on {when}. Ask the speaker to confirm "
+                                     "they are still happy to record before you continue.")
+        else:
+            self.consent_lbl.setText("No consent is saved for this speaker: the consent page "
+                                     "comes first.")
+
+    def start(self):
+        sp = self.selected()
+        if not sp:
+            return
+        for w, msg in ((self.environment, "Environment"), (self.mic, "Microphone")):
+            set_invalid(w, not w.currentText())
+            if not w.currentText():
+                QMessageBox.warning(self, "Continue with a speaker", f"Choose the {msg.lower()}.")
+                return
+        mode = next(k for k, v in MODE_LABELS.items() if v == self.mode.currentText())
+        self.accept()
+        self.app.continue_speaker(sp, mode,
+                                  {"recording_environment": self.environment.currentText(),
+                                   "microphone_type": self.mic.currentText()})

@@ -41,11 +41,17 @@ everything works offline. You need **Python 3.10 or newer**. Linux also needs
 | <img src="docs/screenshots/2-audio-settings.png" width="400"> | **2. Audio settings.** Pick the microphone, click **Test microphone** and check the level. The format is fixed by the project. |
 | <img src="docs/screenshots/3-consent.png" width="400"> | **3. Consent.** Read the terms with the speaker. Nothing is recorded until they agree. |
 | <img src="docs/screenshots/4-speaker.png" width="400"> | **4. Speaker details.** Name, mobile and email stay private. Everything else is anonymous and builds the Speaker ID. |
-| <img src="docs/screenshots/5-record.png" width="400"> | **5. Record.** Record, Stop, Listen, Submit. Every take gets an automatic quality check. |
+| <img src="docs/screenshots/5-record.png" width="400"> | **5. Record.** Record, Stop, Listen, Submit. Every take gets an automatic quality check. Seventeen Indian languages can be typed with English letters; all 22 have letter keys. |
 
 **Then send it:** click **Finish session → Export zip now**. The zip is saved in
 `recordings/submissions/`. **The app never sends anything over the internet.** You share the
 zip yourself, by Google Drive, email or pen drive, as the app's export screen tells you.
+**Export a speaker's recordings** on the home screen exports several speakers at once and
+shows which ones are not exported yet, or have new recordings since their last export.
+
+**Recording the same person again** (another day, more sentences): click **Continue with a
+speaker** on the home screen and pick them from the list. Their details and consent are
+already saved, so nothing is typed again and the new recordings join their earlier ones.
 
 | Key | Action |
 |---|---|
@@ -54,6 +60,7 @@ zip yourself, by Google Drive, email or pen drive, as the app's export screen te
 | Enter | Submit |
 | ← / → | Previous / next sentence (script mode) |
 | Ctrl+Enter | Confirm a typed sentence |
+| Ctrl+Space | Switch between the language's script and plain English letters while typing |
 
 **Tips for good recordings:** quiet room, fans off, microphone 10–15 cm from the mouth, wired
 headset or USB microphone rather than Bluetooth. Wait half a second after pressing Record
@@ -68,6 +75,60 @@ before speaking, and pause half a second before Stop. Read exactly what is writt
   before accepting it.
 - If a returning speaker's earlier recordings used a different audio format, the app warns
   or offers to switch back so their recordings match.
+
+---
+
+## Languages
+
+English and all **22 scheduled languages of India**. Each language is shown in its own script
+with a bundled Noto font, Urdu, Kashmiri and Sindhi are written right to left, and the
+language code goes into the Speaker ID (`hin_UP_LUC_M_1998_…`).
+
+<p align="center">
+  <img src="docs/screenshots/6-hindi-typing.png" alt="Typing Hindi with English letters" width="820">
+</p>
+
+**Type in English letters, fully offline.** Type how a word sounds and it appears in the
+language's script as you type (`mera naam raam hai.` → मेरा नाम राम है।, `naan thamizh
+pEchuvEn.` → நான் தமிழ் பேசுவேன்.). Hindi is the pilot; 16 more languages are in beta.
+**You do not have to be exact:** while you type, real words that match appear under the text
+box (`pani` → पानी, `kitab` → किताब, `bangla` → বাংলা) and Space takes the best one. The
+suggestions come from each language's 50,000 most frequent Wikipedia words, stored with the
+app. See
+[docs/typing-hindi.md](docs/typing-hindi.md) and
+[docs/typing-indian-languages.md](docs/typing-indian-languages.md). Every language also has
+**letter keys**: clickable buttons for every letter, vowel sign and digit of its script.
+
+| Language | Native name | Code | Script(s) | How to type |
+|---|---|---|---|---|
+| English | English | `eng` | Latin (English letters) | Keyboard |
+| Assamese | অসমীয়া | `asm` | Bengali-Assamese | English letters (beta) + letter keys |
+| Bengali | বাংলা | `ben` | Bengali-Assamese | English letters (beta) + letter keys |
+| Bodo | बड़ो | `brx` | Devanagari | English letters (beta) + letter keys |
+| Dogri | डोगरी | `doi` | Devanagari | English letters (beta) + letter keys |
+| Gujarati | ગુજરાતી | `guj` | Gujarati | English letters (beta) + letter keys |
+| Hindi | हिन्दी | `hin` | Devanagari | **English letters (pilot)** + letter keys |
+| Kannada | ಕನ್ನಡ | `kan` | Kannada | English letters (beta) + letter keys |
+| Kashmiri | کٲشُر | `kas` | Perso-Arabic, Devanagari | Letter keys |
+| Konkani | कोंकणी | `kok` | Devanagari, Kannada, Latin (English letters) | English letters (beta) + letter keys |
+| Maithili | मैथिली | `mai` | Devanagari | English letters (beta) + letter keys |
+| Malayalam | മലയാളം | `mal` | Malayalam | English letters (beta) + letter keys |
+| Manipuri | ꯃꯩꯇꯩꯂꯣꯟ | `mni` | Meetei Mayek, Bengali-Assamese | Letter keys |
+| Marathi | मराठी | `mar` | Devanagari | English letters (beta) + letter keys |
+| Nepali | नेपाली | `nep` | Devanagari | English letters (beta) + letter keys |
+| Odia | ଓଡ଼ିଆ | `ory` | Odia | English letters (beta) + letter keys |
+| Punjabi | ਪੰਜਾਬੀ | `pan` | Gurmukhi | English letters (beta) + letter keys |
+| Sanskrit | संस्कृतम् | `san` | Devanagari | English letters (beta) + letter keys |
+| Santali | ᱥᱟᱱᱛᱟᱲᱤ | `sat` | Ol Chiki, Devanagari, Bengali-Assamese, Odia, Latin (English letters) | Letter keys |
+| Sindhi | سنڌي | `snd` | Perso-Arabic, Devanagari | Letter keys |
+| Tamil | தமிழ் | `tam` | Tamil | English letters (beta) + letter keys |
+| Telugu | తెలుగు | `tel` | Telugu | English letters (beta) + letter keys |
+| Urdu | اردو | `urd` | Perso-Arabic | Letter keys |
+
+Script files can be in any of these languages. Save them as UTF-8 CSV, Excel (`.xlsx`) or
+Excel's "Unicode Text"; see [samples/demo_script_hindi.csv](samples/demo_script_hindi.csv).
+Each clip's metadata records the `language`, its ISO 639-3 `language_code` and the ISO 15924
+`script` actually used (for example `Deva`).
 
 ---
 
@@ -173,7 +234,16 @@ python -m venv .venv
 .venv\Scripts\python -m pytest                  # run the tests (no microphone needed)
 .venv\Scripts\python tools\build_windows.py     # build dist\Swaralipi-v<version>-windows.zip
 .venv\Scripts\python tools\make_screenshots.py  # refresh the README screenshots
+.venv\Scripts\python tools\make_typing_docs.py  # rewrite docs/typing-indian-languages.md
+.venv\Scripts\python tools\compare_wikimedia.py # compare typing with Wikimedia (Node.js)
 ```
+
+English-letter typing lives in [recorder/typing/phonetic.py](recorder/typing/phonetic.py):
+one ITRANS-style scheme written in Devanagari and carried to each Brahmic script through
+Unicode's shared layout, plus each language's spelling rules. Tests type real text (UDHR
+articles, [tests/data/typing/](tests/data/typing/)) and check every word comes back
+unchanged. `compare_wikimedia.py` downloads Wikimedia's GPL input-method rules at run time
+(they are not stored here) and reports where the two schemes agree.
 
 `requirements.txt` pins the exact versions the app needs (tested with Python 3.10.11 on
 Windows 11). `requirements-dev.txt` adds the test and build tools.
@@ -185,6 +255,12 @@ Windows 11). `requirements-dev.txt` adds the test and build tools.
 3. GitHub Actions runs the tests, builds the Windows app, checks that it starts, and publishes
    it on the Releases page. Every push to `main` also runs the tests.
 
+Word suggestions: [recorder/typing/suggest.py](recorder/typing/suggest.py) and the word lists in
+[data/wordlists/](data/wordlists/README.md), rebuilt with `tools/build_wordlists.py` (needs
+`pip install pyarrow`). `tools/evaluate_typing.py` measures typing against AI4Bharat's
+Aksharantar test sets (real romanised words): how many words can be typed, and how often the
+way people actually spell a word in English letters gives it. Results: [docs/typing-evaluation.md](docs/typing-evaluation.md).
+
 The interface uses IBM Plex Sans and IBM Plex Mono, bundled in
 [recorder/ui/fonts/](recorder/ui/fonts/). District lists are in
 [data/india_locations.json](data/india_locations.json). The dropdowns are editable, so newly
@@ -194,5 +270,6 @@ created districts can be typed in.
 
 ## License
 
-[MIT](LICENSE) © 2026 Diptiman Mohanta. The bundled IBM Plex fonts are under the SIL Open Font
-License.
+[MIT](LICENSE) © 2026 Diptiman Mohanta. The bundled IBM Plex and Noto fonts are under the SIL
+Open Font License. The word lists in [data/wordlists/](data/wordlists/README.md) are derived
+from Wikipedia and shared under CC BY-SA 4.0.

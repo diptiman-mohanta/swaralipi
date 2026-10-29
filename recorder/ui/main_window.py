@@ -1,14 +1,15 @@
 """Main window: holds the session state and moves between screens."""
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
-from .. import APP_NAME, APP_VERSION, config, ids
+from .. import APP_NAME, APP_VERSION, audio, config, privacy
 from ..audio import AudioSettings, Recorder
 from ..storage import SpeakerStore
-from .pages import (AudioSettingsPage, ConsentPage, ExportDialog, ModePage, SpeakerPage,
-                    WelcomePage)
+from .pages import (AudioSettingsPage, ConsentPage, ContinueDialog, ExportDialog, ModePage,
+                    SpeakerPage, WelcomePage)
 from .record_page import RecordPage
 from .widgets import StepBar
 
@@ -21,7 +22,8 @@ class Session:
     store: SpeakerStore | None = None
     speaker_public: dict = field(default_factory=dict)
     session_details: dict = field(default_factory=dict)
-    private_terms: list = field(default_factory=list)   # in memory only, never saved
+    private_check: privacy.PrivateCheck = field(default_factory=privacy.PrivateCheck)
+    continued: bool = False   # an earlier speaker picked up from the home screen
 
 
 class MainWindow(QMainWindow):
@@ -59,6 +61,7 @@ class MainWindow(QMainWindow):
         for p in self.pages:
             self.stack.addWidget(p)
         self.stack.currentChanged.connect(self._page_changed)
+        self._pending_continue = None   # (speaker, session details) waiting for consent
         self.speaker_page.reset(keep_session_fields=False)
         self.go_welcome()
 
@@ -95,6 +98,11 @@ class MainWindow(QMainWindow):
 
     def consent_done(self, consent: dict):
         self.session.consent = consent
+        if self._pending_continue:
+            sp, details = self._pending_continue
+            self._pending_continue = None
+            self._resume(sp, details, consent)
+            return
         self.go_speaker(keep=False)
 
     def go_speaker(self, keep: bool):
@@ -148,16 +156,53 @@ class MainWindow(QMainWindow):
                                     "recordings. New recordings will be added to them.")
             self._match_earlier_format(store)
         s.store, s.speaker_public, s.session_details = store, public, session_details
-        s.private_terms = [w for w in ids.normalize_name(private["name"]).split() if len(w) >= 3]
-        s.private_terms += [t for t in (ids.mobile_digits(private["mobile"]),
-                                        private["email"].casefold()) if t]
+        s.continued = False
+        s.private_check = privacy.PrivateCheck.from_details(
+            private["name"], private["mobile"], private["email"], public["language"])
+        privacy.remember(store.speaker_id, s.private_check)
         self.record_page.begin(s)
         self.stack.setCurrentWidget(self.record_page)
 
     def new_speaker(self):
         """Same mode and audio settings; new consent and speaker details."""
         self.session.store = None
+        self._pending_continue = None
         self.go_consent()
+
+    def open_continue(self):
+        out = self.session.audio.output_dir or str(config.DEFAULT_OUTPUT_DIR)
+        ContinueDialog(self, out).exec()
+
+    def continue_speaker(self, sp: dict, mode: str, session_details: dict) -> None:
+        """Picks up a speaker recorded earlier: their saved profile and consent are reused, so
+        no details are entered again."""
+        s = self.session
+        s.mode = mode
+        err = audio.check_settings(s.audio)
+        if err:
+            QMessageBox.warning(self, "Microphone",
+                                "The saved audio settings do not work with the microphone that "
+                                f"is connected now.\n\n{err}\n\nCheck the audio settings, then "
+                                "continue with the speaker from the home screen.")
+            self.go_audio()
+            return
+        if not sp["consent_at"]:
+            self._pending_continue = (sp, session_details)
+            self.go_consent()
+            return
+        self._resume(sp, session_details)
+
+    def _resume(self, sp: dict, session_details: dict, consent: dict | None = None) -> None:
+        s = self.session
+        store = SpeakerStore(Path(sp["path"]).parent, sp["speaker_id"])
+        if consent:
+            store.add_consent(consent)
+        s.store, s.speaker_public, s.session_details = store, sp["profile"], session_details
+        s.private_check = privacy.recall(store.speaker_id) or privacy.PrivateCheck()
+        s.continued = True
+        self._match_earlier_format(store)
+        self.record_page.begin(s)
+        self.stack.setCurrentWidget(self.record_page)
 
     def open_export(self, select: str = ""):
         out = self.session.audio.output_dir or str(config.DEFAULT_OUTPUT_DIR)

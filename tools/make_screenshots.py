@@ -12,6 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
 from recorder import audio, config, crypto, qc  # noqa: E402
@@ -86,6 +87,34 @@ def main() -> int:
     rp._show_qc(rp.take_qc)
     rp._update_ui()
     shot("5-record")
+
+    # Hindi speaker typing with English letters, letter keys open.
+    rp.leave()
+    w.session.mode = config.MODE_TYPED
+    w.new_speaker()
+    for c in w.consent_page.checks:
+        c.setChecked(True)
+    w.consent_page.accept()
+    sp.name.setText("Demo Speaker Two")
+    sp.mobile.setText("9000000002")
+    sp.birth_year.setCurrentText("1990")
+    sp.gender.setCurrentText("Male")
+    sp.mother_tongue.setEditText("Hindi")
+    sp.education.setCurrentText("Postgraduate")
+    sp.state.setCurrentText("Uttar Pradesh")
+    sp.district.setCurrentText("Lucknow")
+    sp.pincode.setText("226001")
+    sp.area.setCurrentText("Urban")
+    sp.environment.setCurrentText("Quiet room (home)")
+    sp.select_language("Hindi")
+    sp.save()
+    rp.keys_btn.setChecked(True)
+    rp.transcript.setFocus()
+    QTest.keyClicks(rp.transcript, "mera naam raam hai. aap kaise ")
+    QTest.keyClicks(rp.transcript, "hain")
+    shot("6-hindi-typing")
+    rp.transcript.clear()
+    rp.keys_btn.setChecked(False)
 
     w.go_welcome()
     w.welcome.folder.setText(shown_path)

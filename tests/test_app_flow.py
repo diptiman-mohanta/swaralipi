@@ -35,7 +35,7 @@ def fill_speaker(page, language="English"):
     page.pincode.setText("752001")
     page.area.setCurrentText("Urban")
     page.environment.setCurrentText("Quiet room (home)")
-    page.language.setCurrentText(language)
+    page.select_language(language)
 
 
 def start_session(w, mode, tmp_path, language="English"):

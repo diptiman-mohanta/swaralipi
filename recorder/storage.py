@@ -25,7 +25,8 @@ from . import crypto
 
 MANIFEST_FIELDS = [
     "sentence_id", "speaker_id", "text", "audio_filepath", "audio_16k_filepath", "duration_sec",
-    "sample_rate", "bit_depth", "channels", "file_format", "language", "mode", "script_file",
+    "sample_rate", "bit_depth", "channels", "file_format", "language", "language_code",
+    "script", "mode", "script_file",
     "script_sentence_no", "gender", "birth_year", "age_at_recording", "age_group",
     "mother_tongue", "education", "occupation", "area_type", "country", "state", "district",
     "pincode_prefix", "recording_environment", "microphone_type", "input_device",
@@ -154,20 +155,36 @@ class SpeakerStore:
         return sum(float(r.get("duration_sec") or 0) for r in self.records.values())
 
 
+def _read_json(path: Path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
 def list_speakers(output_dir: Path) -> list[dict]:
-    """Speaker folders in an output directory, with clip counts, for the export screen."""
+    """Speaker folders in an output directory: clip counts for the export screen, and the
+    profile, last recording and consent date for continuing a speaker later."""
     out = []
     root = Path(output_dir)
     if not root.is_dir():
         return out
     for d in sorted(root.iterdir()):
-        if (d / "speaker.json").is_file():
-            manifest = d / "manifest.jsonl"
-            clips, seconds = 0, 0.0
-            if manifest.exists():
-                for line in manifest.read_text(encoding="utf-8").splitlines():
-                    if line.strip():
-                        clips += 1
-                        seconds += float(json.loads(line).get("duration_sec") or 0)
-            out.append({"speaker_id": d.name, "path": d, "clips": clips, "seconds": seconds})
+        profile_path = d / "speaker.json"
+        if not profile_path.is_file():
+            continue
+        manifest = d / "manifest.jsonl"
+        clips, seconds, last = 0, 0.0, {}
+        if manifest.exists():
+            for line in manifest.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    last = json.loads(line)
+                    clips += 1
+                    seconds += float(last.get("duration_sec") or 0)
+        consent = _read_json(d / "consent.json", [])
+        updated = max(p.stat().st_mtime for p in (profile_path, manifest) if p.exists())
+        out.append({"speaker_id": d.name, "path": d, "clips": clips, "seconds": seconds,
+                    "profile": _read_json(profile_path, {}), "last": last,
+                    "consent_at": consent[0].get("agreed_at", "") if consent else "",
+                    "updated": updated})
     return out

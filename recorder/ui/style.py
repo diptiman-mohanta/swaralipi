@@ -42,7 +42,8 @@ READOUT = 30
 
 
 def load_fonts() -> None:
-    for f in FONTS_DIR.glob("*.ttf"):
+    """IBM Plex for the interface, Noto fonts for the scripts of Indian languages."""
+    for f in sorted(FONTS_DIR.rglob("*.ttf")):
         QFontDatabase.addApplicationFont(str(f))
 
 
@@ -119,6 +120,17 @@ QPushButton#Record:disabled {{ background: #e3b9b3; border-color: #e3b9b3; color
 QPushButton#Quiet {{ border: none; padding: 7px 0; color: {INK_2}; text-decoration: underline; }}
 QPushButton#Quiet:hover {{ color: {INK}; background: transparent; }}
 QPushButton#Quiet:disabled {{ color: #b9b5a8; }}
+QPushButton#Segment {{ padding: 6px 12px; }}
+QPushButton#Segment:checked {{ background: {INK}; color: {PAPER}; border-color: {INK}; }}
+QPushButton#Suggestion {{ padding: 1px 10px; border-color: {RULE}; background: {FIELD}; font-weight: 400; }}
+QPushButton#Suggestion:hover {{ background: {HOVER}; }}
+QPushButton#Suggestion:checked {{ background: {INK}; color: {PAPER}; border-color: {INK}; }}
+QPushButton#Key {{
+    min-width: 30px; min-height: 30px; padding: 2px 6px; border-radius: 3px;
+    background: {FIELD}; font-weight: 400;
+}}
+QPushButton#Key:hover {{ background: {HOVER}; }}
+QScrollArea#KeysPanel {{ border-top: 1px solid {RULE}; border-bottom: 1px solid {RULE}; }}
 QPushButton#Option {{
     text-align: left; border: none; border-top: 1px solid {RULE}; border-radius: 0;
     padding: 18px 12px;

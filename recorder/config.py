@@ -46,16 +46,36 @@ AUDIO_PRESETS = {
 }
 CUSTOM_PRESET = "Custom"
 
+# ---------------------------------------------------------------- languages and scripts
+# English plus the 22 scheduled languages of India, from data/languages.json.
+_LANG_DATA = json.loads((DATA_DIR / "languages.json").read_text(encoding="utf-8"))
+LANGUAGE_INFO = {lang["name"]: lang for lang in _LANG_DATA["languages"]}   # name -> details
+LANGUAGES = {name: info["code"] for name, info in LANGUAGE_INFO.items()}   # name -> ISO 639-3
+SCRIPTS = _LANG_DATA["scripts"]                                            # ISO 15924 -> details
+ARABIC_LETTERS = _LANG_DATA["arabic_letters"]
+
+
+def language_label(name: str) -> str:
+    """'Hindi — हिन्दी' for dropdowns; English stays 'English'."""
+    native = LANGUAGE_INFO[name]["native"]
+    return name if native == name else f"{name} — {native}"
+
+
+def language_font(name: str) -> str:
+    """Font family for text in this language's main script."""
+    info = LANGUAGE_INFO.get(name, {})
+    return info.get("font") or SCRIPTS[info.get("scripts", ["Latn"])[0]]["font"]
+
+
+def is_rtl(name: str) -> bool:
+    info = LANGUAGE_INFO.get(name, {})
+    return SCRIPTS[info.get("scripts", ["Latn"])[0]].get("rtl", False)
+
+
 # ---------------------------------------------------------------- speaker options
-LANGUAGES = {   # display name -> ISO 639-3 code
-    "English": "eng", "Assamese": "asm", "Bengali": "ben", "Gujarati": "guj",
-    "Hindi": "hin", "Kannada": "kan", "Malayalam": "mal", "Marathi": "mar",
-    "Odia": "ory", "Punjabi": "pan", "Tamil": "tam", "Telugu": "tel", "Urdu": "urd",
-}
-MOTHER_TONGUES = ["Assamese", "Bengali", "Bhojpuri", "Bodo", "Dogri", "English", "Gujarati",
-                  "Hindi", "Kannada", "Kashmiri", "Konkani", "Maithili", "Malayalam", "Manipuri",
-                  "Marathi", "Nepali", "Odia", "Punjabi", "Sanskrit", "Santali", "Sindhi",
-                  "Tamil", "Telugu", "Tulu", "Urdu", "Other"]
+MOTHER_TONGUES = sorted([n for n in LANGUAGES] +
+                        ["Bhili", "Bhojpuri", "Garo", "Gondi", "Ho", "Khasi", "Kurukh", "Mizo",
+                         "Tulu"]) + ["Other"]
 GENDERS = {"Male": "M", "Female": "F", "Other / Non-binary": "O", "Prefer not to say": "X"}
 EDUCATION = ["No formal education", "Primary (up to Class 5)", "Middle (Class 6-8)",
              "Secondary (Class 10)", "Higher Secondary (Class 12)", "Diploma / ITI",
